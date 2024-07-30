@@ -10,23 +10,20 @@ import {
   onSnapshot,
   deleteDoc,
   doc,
+  setDoc,
 } from 'firebase/firestore';
 import { db } from "./firebase";
 
 export default function Home() {
-  const [items, setItems] = useState([
-    // {name: 'Cereal', quantity: 1}, 
-    // {name: 'Apple', quantity: 4}, 
-    // {name: 'Banana', quantity: 2}, 
-  ]);
+  const [items, setItems] = useState([]);
   const [newItem, setNewItem] = useState({ name: '', quantity: '' });
+  const [editingItem, setEditingItem] = useState(null);
   const [total, setTotal] = useState(0);
 
   // Add item to database
   const addItem = async (e) => {
     e.preventDefault();
     if (newItem.name !== '' && newItem.quantity !== '') {
-      // setItems([...items, newItem]);
       await addDoc(collection(db, 'items'), {
         name: newItem.name.trim(),
         quantity: newItem.quantity,
@@ -35,7 +32,20 @@ export default function Home() {
     }
   };
 
-  // Read item from database
+  // Update item in database
+  const updateItem = async (e) => {
+    e.preventDefault();
+    if (editingItem.name !== '' && editingItem.quantity !== '') {
+      const itemRef = doc(db, 'items', editingItem.id);
+      await setDoc(itemRef, {
+        name: editingItem.name.trim(),
+        quantity: editingItem.quantity,
+      });
+      setEditingItem(null); // Exit edit mode
+    }
+  };
+
+  // Read items from database
   useEffect(() => {
     const q = query(collection(db, 'items'));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -69,39 +79,67 @@ export default function Home() {
       <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
         <h1 className="text-4xl p-4 text-center">AI Pantry Tracker</h1>
         <div className='bg-slate-800 p-4 rounded-lg'>
-          <form className='grid grid-cols-6 items-center text-black'>
-            <input 
-              value={newItem.name}
-              onChange={(e) => setNewItem({...newItem, name: e.target.value})}
-              className='col-span-3 p-3 border' 
-              type="text" 
-              placeholder="Enter Item" 
-            />
-            <input 
-              value={newItem.quantity}
-              onChange={(e) => setNewItem({...newItem, quantity: e.target.value})}
-              className='col-span-2 p-3 border mx-3' 
-              type="number" 
-              placeholder="Enter Quantity" 
-            />
-            <button 
-              onClick={addItem}
-              className='text-white bg-slate-950 hover:bg-slate-900 p-3 text-xl' 
-              type="submit">
-              
-              +
-            </button>
-          </form>
+          {editingItem ? (
+            <form onSubmit={updateItem} className='grid grid-cols-6 items-center text-black'>
+              <input
+                value={editingItem.name}
+                onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                className='col-span-3 p-3 border'
+                type="text"
+                placeholder="Edit Item Name"
+              />
+              <input
+                value={editingItem.quantity}
+                onChange={(e) => setEditingItem({ ...editingItem, quantity: e.target.value })}
+                className='col-span-2 p-3 border mx-3'
+                type="number"
+                placeholder="Edit Quantity"
+              />
+              <button type="submit" className='text-white bg-slate-950 hover:bg-slate-900 p-3 text-xl'>
+                Save
+              </button>
+              <button
+                onClick={() => setEditingItem(null)}
+                className='ml-4 p-3 border-1-2 border-slate-900 hover:bg-slate-900 w-16'>
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <form className='grid grid-cols-6 items-center text-black'>
+              <input 
+                value={newItem.name}
+                onChange={(e) => setNewItem({...newItem, name: e.target.value})}
+                className='col-span-3 p-3 border' 
+                type="text" 
+                placeholder="Enter Item" 
+              />
+              <input 
+                value={newItem.quantity}
+                onChange={(e) => setNewItem({...newItem, quantity: e.target.value})}
+                className='col-span-2 p-3 border mx-3' 
+                type="number" 
+                placeholder="Enter Quantity" 
+              />
+              <button 
+                onClick={addItem}
+                className='text-white bg-slate-950 hover:bg-slate-900 p-3 text-xl' 
+                type="submit">
+                +
+              </button>
+            </form>
+          )}
           <ul>
-            {items.map((item, id)=> (
-              <li 
-                key={id} 
-                className='my-4w-full flex justify-between'
-              >
+            {items.map((item, id) => (
+              <li key={id} className='my-4 w-full flex justify-between'>
                 <div className='p-4 w-full flex justify-between'>
                   <span className='capitalize'>{item.name}</span>
                   <span>{item.quantity}</span>
                 </div>
+                <button 
+                  onClick={() => setEditingItem(item)}
+                  className='ml-8 p-4 border-1-2 border-slate-900 hover:bg-slate-900 w-16'>
+                    Edit
+                </button>
                 <button 
                   onClick={() => deleteItem(item.id)}
                   className='ml-8 p-4 border-1-2 border-slate-900 hover:bg-slate-900 w-16'>
