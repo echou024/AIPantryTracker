@@ -1,6 +1,6 @@
-'use client'
+'use client';
 import Image from "next/image";
-import React, {useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   collection,
   addDoc,
@@ -64,6 +64,10 @@ export default function Home() {
       querySnapshot.forEach((doc) => {
         itemsArr.push({ ...doc.data(), id: doc.id });
       });
+
+      // Sort items alphabetically by name
+      itemsArr.sort((a, b) => a.name.localeCompare(b.name));
+
       setItems(itemsArr);
 
       // Read total from itemsArr
