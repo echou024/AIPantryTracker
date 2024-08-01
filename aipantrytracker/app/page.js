@@ -9,8 +9,40 @@ import {
   deleteDoc,
   doc,
   setDoc,
+  getDocs,
 } from 'firebase/firestore';
 import { db } from "./firebase";
+import { OpenAI } from 'openai';
+
+const openai = new OpenAI({ apiKey: "", dangerouslyAllowBrowser: true });
+
+async function suggestRecipe(pantryContents, setRecipe) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "user",
+          content: `Suggest a recipe based on the following pantry contents: ${pantryContents.join(", ")}.`,
+        },
+      ],
+    });
+    const recipe = response.choices[0].message.content;
+    setRecipe(recipe);
+  } catch (error) {
+    handleAPIError(error);
+  }
+}
+
+function handleAPIError(error) {
+  if (error.code === 'insufficient_quota') {
+    console.error("Error: You have exceeded your API quota. Please check your plan and billing details.");
+  } else if (error.code === 'model_not_found') {
+    console.error("Error: The model you requested has been deprecated or does not exist. Please use a valid model.");
+  } else {
+    console.error("Error generating response:", error);
+  }
+}
 
 export default function Home() {
   const [items, setItems] = useState([]);
@@ -18,44 +50,78 @@ export default function Home() {
   const [editingItem, setEditingItem] = useState(null);
   const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [recipe, setRecipe] = useState('');
 
-  // Add item to database
+  const fetchAndUpdateRecipes = async () => {
+    const pantryContents = items.map(item => item.name);
+    await suggestRecipe(pantryContents, setRecipe);
+  };
+
   const addItem = async (e) => {
     e.preventDefault();
-    const quantity = parseFloat(newItem.quantity);
-    if (newItem.name.trim() !== '' && !isNaN(quantity)) {
-      if (quantity === 0) {
+    setLoading(true);
+    try {
+      const quantity = parseFloat(newItem.quantity);
+      if (newItem.name.trim() !== '' && !isNaN(quantity)) {
+        if (quantity === 0) {
+          setNewItem({ name: '', quantity: '' });
+          setLoading(false);
+          return;
+        }
+
+        // Check if item already exists
+        const existingItem = items.find(item => item.name.toLowerCase() === newItem.name.trim().toLowerCase());
+        if (existingItem) {
+          const itemRef = doc(db, 'items', existingItem.id);
+          await setDoc(itemRef, {
+            name: existingItem.name,
+            quantity: parseFloat(existingItem.quantity) + quantity,
+          });
+        } else {
+          await addDoc(collection(db, 'items'), {
+            name: newItem.name.trim(),
+            quantity: newItem.quantity,
+          });
+        }
+
         setNewItem({ name: '', quantity: '' });
-        return;
+        await fetchAndUpdateRecipes();
       }
-      await addDoc(collection(db, 'items'), {
-        name: newItem.name.trim(),
-        quantity: newItem.quantity,
-      });
-      setNewItem({ name: '', quantity: '' });
+    } catch (error) {
+      console.error("Error adding item:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Update item in database
   const updateItem = async (e) => {
     e.preventDefault();
-    const quantity = parseFloat(editingItem.quantity);
-    if (editingItem.name.trim() !== '' && !isNaN(quantity)) {
-      if (quantity === 0) {
-        await deleteItem(editingItem.id);
+    setLoading(true);
+    try {
+      const quantity = parseFloat(editingItem.quantity);
+      if (editingItem.name.trim() !== '' && !isNaN(quantity)) {
+        if (quantity === 0) {
+          await deleteItem(editingItem.id);
+          setEditingItem(null);
+          setLoading(false);
+          return;
+        }
+        const itemRef = doc(db, 'items', editingItem.id);
+        await setDoc(itemRef, {
+          name: editingItem.name.trim(),
+          quantity: editingItem.quantity,
+        });
         setEditingItem(null);
-        return;
+        await fetchAndUpdateRecipes();
       }
-      const itemRef = doc(db, 'items', editingItem.id);
-      await setDoc(itemRef, {
-        name: editingItem.name.trim(),
-        quantity: editingItem.quantity,
-      });
-      setEditingItem(null); // Exit edit mode
+    } catch (error) {
+      console.error("Error updating item:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Read items from database
   useEffect(() => {
     const q = query(collection(db, 'items'));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -65,12 +131,10 @@ export default function Home() {
         itemsArr.push({ ...doc.data(), id: doc.id });
       });
 
-      // Sort items alphabetically by name
       itemsArr.sort((a, b) => a.name.localeCompare(b.name));
 
       setItems(itemsArr);
 
-      // Read total from itemsArr
       const calculateTotal = () => {
         const totalQuantity = itemsArr.reduce(
           (sum, item) => sum + parseFloat(item.quantity),
@@ -79,16 +143,22 @@ export default function Home() {
         setTotal(totalQuantity);
       };
       calculateTotal();
-      return () => unsubscribe();
     });
+    return () => unsubscribe();
   }, []);
 
-  // Delete item from database
   const deleteItem = async (id) => {
-    await deleteDoc(doc(db, 'items', id));
+    setLoading(true);
+    try {
+      await deleteDoc(doc(db, 'items', id));
+      await fetchAndUpdateRecipes();
+    } catch (error) {
+      console.error("Error deleting item:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Filter items based on search query
   const filteredItems = items.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -151,7 +221,7 @@ export default function Home() {
               <button 
                 className='text-white bg-purple-500 hover:bg-purple-600 p-3 rounded-md' 
                 type="submit">
-                +
+                {loading ? 'Loading...' : '+'}
               </button>
             </form>
           )}
@@ -183,8 +253,20 @@ export default function Home() {
               <span className='font-bold text-slate-700'>{total}</span>
             </div>
           )}
+          <button 
+            onClick={fetchAndUpdateRecipes} 
+            className='mt-6 text-white bg-purple-500 hover:bg-purple-600 p-3 rounded-md'>
+            Create Recipe
+          </button>
+          {recipe && (
+            <div className='mt-6 p-4 bg-purple-50 rounded-lg shadow-md'>
+              <h2 className='text-xl font-bold text-slate-700'>Suggested Recipe:</h2>
+              <p className='text-slate-700 mt-2'>{recipe}</p>
+            </div>
+          )}
         </div>
       </div>
     </main>
   );
 }
+
