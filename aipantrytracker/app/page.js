@@ -1,6 +1,6 @@
 'use client';
 import Image from "next/image";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   collection,
   addDoc,
@@ -13,6 +13,18 @@ import {
 } from 'firebase/firestore';
 import { db } from "./firebase";
 import { OpenAI } from 'openai';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from './firebase';
+import Webcam from 'react-webcam';
+
+const uploadImage = async (file) => {
+  if (!file) return;
+
+  const storageRef = ref(storage, `images/${file.name}`);
+  await uploadBytes(storageRef, file);
+  const url = await getDownloadURL(storageRef);
+  return url;
+};
 
 const openai = new OpenAI({ apiKey: "", dangerouslyAllowBrowser: true });
 
@@ -52,6 +64,9 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [recipe, setRecipe] = useState('');
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const webcamRef = useRef(null);
 
   const fetchAndUpdateRecipes = async () => {
     const pantryContents = items.map(item => item.name);
@@ -159,12 +174,44 @@ export default function Home() {
     }
   };
 
+  const handleImageCapture = async () => {
+    const imageSrc = webcamRef.current.getScreenshot();
+    setCapturedImage(imageSrc);
+    const classification = await classifyImage(imageSrc);
+    const newItem = { name: classification.name, quantity: classification.quantity };
+    await addItem(newItem);
+  };
+
+  const handleFileChange = async (event) => {
+    const file = event.target.files[0];
+    setSelectedFile(file);
+    const imageUrl = await uploadImage(file);
+    const classification = await classifyImage(imageUrl);
+    const newItem = { name: classification.name, quantity: classification.quantity };
+    await addItem(newItem);
+  };
+
+  const classifyImage = async (imageUrl) => {
+    // Implement the classifyImage function according to your needs.
+    // This can involve calling an external API to classify the image.
+    // For example:
+    // const response = await fetch('YOUR_CLASSIFICATION_API_ENDPOINT', {
+    //   method: 'POST',
+    //   body: JSON.stringify({ imageUrl }),
+    //   headers: {
+    //     'Content-Type': 'application/json',
+    //   },
+    // });
+    // const data = await response.json();
+    // return data;
+  };
+
   const filteredItems = items.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
-    <main className="flex min-h-screen flex-col items-center bg-purple-50 p-6">
+    <main className="flex min-h-screen flex-col items-center bg-pink-300 p-6">
       <header className="w-full flex flex-col items-center bg-purple-500 p-4 shadow-md fixed top-0 z-10 rounded-b-lg">
         <h1 className="text-2xl font-bold text-white mb-4">AI Pantry Tracker</h1>
         <input
@@ -225,6 +272,18 @@ export default function Home() {
               </button>
             </form>
           )}
+          <div className='mb-4'>
+            <input type="file" onChange={handleFileChange} className="mb-4" />
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              className="mb-4"
+            />
+            <button onClick={handleImageCapture} className='text-white bg-purple-500 hover:bg-purple-600 p-3 rounded-md mb-4'>
+              Capture Image
+            </button>
+          </div>
           <ul>
             {filteredItems.map((item, id) => (
               <li key={id} className='my-4 p-4 bg-purple-50 rounded-lg shadow-md flex justify-between items-center'>
@@ -269,4 +328,5 @@ export default function Home() {
     </main>
   );
 }
+
 
