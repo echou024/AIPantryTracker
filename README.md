@@ -1,4 +1,4 @@
-# AIPantryTracker
+# AI Pantry Tracker
 
 This project is a pantry management application that allows users to keep track of pantry items by adding or removing items and updating their quantities, and even generate recipes based on the pantry iitems available. The project uses Next.js as the frontend framework, OpenAI for the generative ai service, and Firebase as the backend service. 
 
