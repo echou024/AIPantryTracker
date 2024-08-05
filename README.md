@@ -1,10 +1,7 @@
 # AIPantryTracker
 
-This project is a pantry management application that allows users to keep track of pantry items by adding or removing items and updating their quantities. The project uses Next.js as the frontend framework, Material UI for the UI components, and Firebase as the backend service. 
+This project is a pantry management application that allows users to keep track of pantry items by adding or removing items and updating their quantities, and even generate recipes based on the pantry iitems available. The project uses Next.js as the frontend framework, OpenAI for the generative ai service, and Firebase as the backend service. 
 
-- Take images with mobile or browser camera
-- Use GPT Vision API or other LLMs to classify images and then update to Firebase
-- Use GCP Vertex AI and AutoML to classify 4-5 images of items near you and update Firebase
 
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
